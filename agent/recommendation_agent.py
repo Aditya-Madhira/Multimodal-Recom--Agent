@@ -1,41 +1,35 @@
 ﻿"""
 Multimodal Recommendation Agent
-Handles query processing, image analysis, and recommendation generation.
+Integrates ChromaDB + CLIP Multimodal Retrieval with Evidence Conflict Detection.
 """
 
 from typing import Optional, Dict, Any, List
 from PIL import Image
 import os
 
+from retriever.multimodal_store import MultimodalRetriever
+from .conflict_detector import MultimodalConflictDetector
+
 
 class MultimodalRecommendationAgent:
-    def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("OPENAI_API_KEY")
-        # Sample starter catalog for demonstration until vector database is indexed
-        self.sample_catalog = [
-            {
-                "title": "Minimalist Scandinavian Armchair",
-                "category": "Furniture & Interior",
-                "score": "94%",
-                "description": "Clean lines with warm oak legs and textured woven upholstery, perfect for modern living spaces."
-            },
-            {
-                "title": "Industrial Matte Black Floor Lamp",
-                "category": "Lighting",
-                "score": "89%",
-                "description": "Adjustable dual-head architectural lamp providing targeted ambient and task lighting."
-            },
-            {
-                "title": "Abstract Geometric Ceramic Vase",
-                "category": "Home Decor",
-                "score": "85%",
-                "description": "Handcrafted neutral-tone ceramic centerpiece complementing minimalist aesthetics."
-            }
-        ]
+    def __init__(self):
+        self.retriever = MultimodalRetriever()
+        self.conflict_detector = MultimodalConflictDetector()
 
-    def process_query(self, query: str, image: Optional[Image.Image] = None) -> Dict[str, Any]:
+    def process_query(
+        self,
+        query: str,
+        image: Optional[Image.Image] = None,
+        filter_conflicts: bool = False,
+        top_k: int = 4
+    ) -> Dict[str, Any]:
         """
-        Process a multimodal query consisting of user text and an optional image.
+        Full Evidence-Grounded Multimodal RAG Pipeline:
+        1. Embed multimodal query (Text + Image) using Hugging Face CLIP
+        2. Retrieve candidate items from ChromaDB
+        3. Cross-examine multimodal evidence across Specs, Images, Marketing, and Reviews
+        4. Detect contradictions and calculate calibrated confidence scores
+        5. Synthesize evidence-grounded recommendation response
         """
         has_image = image is not None
         image_meta = {}
@@ -47,30 +41,81 @@ class MultimodalRecommendationAgent:
                 "mode": image.mode
             }
 
-        # Response text generation
+        # 1 & 2. Cross-modal retrieval from ChromaDB
+        candidates = self.retriever.search(
+            query_text=query,
+            query_image=image,
+            top_k=top_k
+        )
+
+        if not candidates:
+            return {
+                "response_text": "I couldn't find products matching your query. Try broadening your description or uploading another reference image.",
+                "has_image": has_image,
+                "image_meta": image_meta,
+                "evaluated_items": [],
+                "conflict_summary": {}
+            }
+
+        # 3 & 4. Conflict detection & evidence reconciliation
+        evaluated_items = self.conflict_detector.evaluate_candidates(
+            retrieved_items=candidates,
+            query=query
+        )
+
+        if filter_conflicts:
+            evaluated_items = [item for item in evaluated_items if not item["has_conflict"]]
+
+        # Count conflict statistics
+        conflict_count = sum(1 for item in evaluated_items if item["has_conflict"])
+        verified_count = len(evaluated_items) - conflict_count
+
+        # 5. Build intelligent response narrative
+        response_lines = []
         if has_image and query.strip():
-            response_text = (
-                f"**Multimodal Query Received!**\n\n"
-                f"I analyzed your uploaded image (*{image_meta.get('size')}, {image_meta.get('format')}*) "
-                f"alongside your query: *\"{query.strip()}\"*.\n\n"
-                f"Here are contextually relevant recommendations retrieved based on visual style and text criteria:"
+            response_lines.append(
+                f"### 🔍 Multimodal Search & Evidence Analysis\n"
+                f"I cross-referenced visual features from your uploaded image (*{image_meta.get('size')}*) "
+                f"with your text constraint *\"{query.strip()}\"*."
             )
-        elif has_image and not query.strip():
-            response_text = (
-                f"**Image Analysis & Visual Recommendations:**\n\n"
-                f"I processed the visual features of your image (*{image_meta.get('size')}*). "
-                f"Here are items matching the aesthetic, color palette, and style detected in your image:"
+        elif has_image:
+            response_lines.append(
+                f"### 📷 Visual Feature Retrieval & Evidence Check\n"
+                f"I extracted visual style and material features from your image (*{image_meta.get('size')}*) "
+                f"and queried our product index."
             )
         else:
-            response_text = (
-                f"**Recommendation Results:**\n\n"
-                f"Based on your query *\"{query.strip()}\"*, "
-                f"I searched our index for relevant recommendations:"
+            response_lines.append(
+                f"### 📋 Evidence-Grounded Search Results\n"
+                f"I searched for *\"{query.strip()}\"* and cross-examined the evidence across manufacturer specifications, "
+                f"images, and customer reviews."
             )
+
+        response_lines.append(
+            f"\n**Evidence Audit Summary:** Identified **{len(evaluated_items)} candidate products** — "
+            f"✅ **{verified_count} verified consistent**, ⚠️ **{conflict_count} with detected evidence contradictions**."
+        )
+
+        if conflict_count > 0:
+            conflicted_titles = [
+                f"*{item['product']['title']}* ({item['conflict_type']})"
+                for item in evaluated_items if item["has_conflict"]
+            ]
+            response_lines.append(
+                f"\n> ⚠️ **Discrepancy Warning**: Before purchasing, review the conflicting evidence flags below for: "
+                f"{', '.join(conflicted_titles)}."
+            )
+
+        response_text = "\n".join(response_lines)
 
         return {
             "response_text": response_text,
             "has_image": has_image,
             "image_meta": image_meta,
-            "recommendations": self.sample_catalog
+            "evaluated_items": evaluated_items,
+            "conflict_summary": {
+                "total": len(evaluated_items),
+                "verified": verified_count,
+                "conflicts": conflict_count
+            }
         }

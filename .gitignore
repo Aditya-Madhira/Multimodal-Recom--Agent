@@ -20,3 +20,6 @@ __pycache__/
 # IDE
 .vscode/
 .idea/
+
+# ChromaDB
+chroma_db/
