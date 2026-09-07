@@ -58,7 +58,7 @@ graph TD
 - 📸 **Visual Reference Uploader**: Upload an aesthetic reference image from the sidebar to guide recommendations.
 - 🛡️ **Strict Verification Mode**: A one-click toggle in the sidebar that automatically filters out any product with detected discrepancies.
 - 🔍 **Side-by-Side Evidence Drawer**: Click open any product card to see the breakdown: *What the image says*, *What the spec table lists*, *What real buyers experienced*, and *What the seller claimed*.
-- 📊 **Confidence & Match Scores**: View both visual similarity percentage and calibrated product reliability.
+- 📊 **Confidence & Match Scores**: View visual similarity scores alongside multi-source evidence reliability scores.
 
 ---
 
@@ -106,7 +106,7 @@ AZURE_OPENAI_API_KEY=your-api-key-here
 AZURE_OPENAI_DEPLOYMENT_NAME=gpt-5
 AZURE_OPENAI_API_VERSION=2025-08-07
 ```
-*(Note: If no API key is provided, the agent will automatically use its built-in calibrated heuristic engine so you can still test everything!)*
+*(Note: If no API key is provided, the agent will automatically fall back to its built-in rule-based evidence heuristic so you can still test the UI immediately!)*
 
 ### 5. Launch the Streamlit App
 ```bash
@@ -116,22 +116,25 @@ Open your browser at `http://localhost:8501`.
 
 ---
 
-## 🧪 Benchmark & Metrics
+## 🧪 Evaluation on Hand-Crafted Benchmark
 
-We include an automated benchmark suite to evaluate how effectively the agent performs:
+To quantitatively assess the agent's behavior, we created an evaluation suite ([benchmark_metrics.py](benchmark_metrics.py)) tested on a curated dataset representing distinct conflict archetypes (material authenticity mismatches, load rating discrepancies, noise rating mismatches, and verified consistent controls):
+
 ```bash
 python benchmark_metrics.py
 ```
 
-### Current Benchmark Results (Google ADK + GPT-5):
+### Results on Curated Test Set ($N=6$):
 
-| Category | Metric | Score | Note |
+| Category | Metric | Score | Details |
 | :--- | :--- | :--- | :--- |
-| **Agent Tool Calling** | **Tool Routing Accuracy** | **100%** | Correctly selected search vs. evidence audit tools |
-| **Agent Tool Calling** | **Argument Validity Rate** | **100%** | Valid parameter payloads passed to ADK tools |
-| **Conflict Detection** | **Precision** | **100%** | Zero false accusations on genuine products |
-| **Conflict Detection** | **Recall** | **100%** | Successfully caught 100% of conflicting products |
-| **Conflict Detection** | **False Positive Rate** | **0.0%** | Genuinely verified items remained unflagged |
+| **Agent Tool Calling** | **Tool Routing Accuracy** | **100%** | Correctly selected search vs. evidence audit tools across test queries |
+| **Agent Tool Calling** | **Argument Validity Rate** | **100%** | Passed schema-compliant payloads to Google ADK tools |
+| **Conflict Detection** | **Precision** | **100%** | Zero false accusations on verified consistent products |
+| **Conflict Detection** | **Recall** | **100%** | Successfully identified all hand-labeled contradiction cases |
+| **Conflict Detection** | **False Positive Rate** | **0.0%** | Fully grounded items remained correctly unflagged |
+
+> **Methodological Scope**: These metrics reflect evaluation on a small, hand-labeled prototype benchmark ($N=6$) designed to probe cross-modal conflict edge cases. Future work includes expanding this to large-scale e-commerce datasets with automated synthetic conflict injection.
 
 ---
 
