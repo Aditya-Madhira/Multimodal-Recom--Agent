@@ -4,20 +4,20 @@ import os
 from dotenv import load_dotenv
 
 from agent.recommendation_agent import MultimodalRecommendationAgent
-from agent.azure_llm import AzureOpenAIClient
+from agent.google_adk_agent import create_adk_agent
 
 # Load environment variables
 load_dotenv()
 
 # Page Configuration
 st.set_page_config(
-    page_title="Multimodal Evidence-Grounded Recommender",
+    page_title="Multimodal Evidence Recommender • Google ADK + GPT-5",
     page_icon="🛍️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for research-grade styling
+# Custom CSS
 st.markdown("""
 <style>
     .main-title {
@@ -29,6 +29,25 @@ st.markdown("""
         color: #64748B;
         font-size: 1.05rem;
         margin-bottom: 1.5rem;
+    }
+    .badge-adk {
+        background-color: #1E3A8A;
+        color: #93C5FD;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.82rem;
+        display: inline-block;
+        margin-right: 6px;
+    }
+    .badge-gpt5 {
+        background-color: #14532D;
+        color: #86EFAC;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.82rem;
+        display: inline-block;
     }
     .badge-verified {
         background-color: #065F46;
@@ -57,25 +76,18 @@ st.markdown("""
         font-size: 0.82rem;
         display: inline-block;
     }
-    .evidence-box {
-        background-color: #1E293B;
-        border-left: 4px solid #3B82F6;
-        padding: 12px 16px;
-        border-radius: 4px;
-        margin-top: 8px;
-        margin-bottom: 8px;
-    }
 </style>
 """, unsafe_allow_html=True)
 
 
-@st.cache_resource(show_spinner="Initializing Multimodal CLIP & ChromaDB Index...")
-def get_agent():
-    return MultimodalRecommendationAgent()
+@st.cache_resource(show_spinner="Initializing Google ADK Agent & Vector Index...")
+def get_recommendation_system():
+    recom_agent = MultimodalRecommendationAgent()
+    adk_agent = create_adk_agent()
+    return recom_agent, adk_agent
 
 
-agent = get_agent()
-azure_client = AzureOpenAIClient()
+agent, adk_agent = get_recommendation_system()
 
 # Initialize Session State
 if "messages" not in st.session_state:
@@ -83,16 +95,15 @@ if "messages" not in st.session_state:
         {
             "role": "assistant",
             "content": (
-                "👋 **Welcome to the Evidence-Grounded Multimodal Recommendation Agent!**\n\n"
-                "Unlike conventional recommendation systems that blindly summarize marketing claims, "
-                "this system **cross-examines multimodal evidence** across:\n"
+                "👋 **Welcome! I am your Multimodal Recommendation Agent built with Google ADK.**\n\n"
+                "My reasoning brain is powered by **Azure AI Foundry GPT-5** and cross-modal retrieval is indexed with **ChromaDB + CLIP**.\n\n"
+                "Rather than accepting marketing claims at face value, I **audit and cross-examine multimodal evidence** across:\n"
                 "- 📸 **Visual features & product imagery**\n"
                 "- 📋 **Technical specification tables**\n"
                 "- 📣 **Manufacturer marketing claims**\n"
                 "- 💬 **Real-world customer experience & reviews**\n\n"
-                "Try searching for *\"leather armchair\"*, *\"ergonomic office chair\"*, or *\"brass pendant light\"*, "
-                "or upload a reference photo to observe how it flags contradictions like PU faux-leather, "
-                "weight limit discrepancies, or plastic finishes!"
+                "Try searching for *\"leather armchair\"*, *\"ergonomic office chair\"*, or *\"brass pendant lamp\"*, "
+                "or upload an image to see how contradictions (e.g. PU plastic vs full-grain leather, weight limits) are detected!"
             ),
             "image": None,
             "evaluated_items": []
@@ -101,12 +112,23 @@ if "messages" not in st.session_state:
 
 # Sidebar
 with st.sidebar:
-    st.title("🛍️ Agent Controls")
+    st.title("🛍️ Agent Control Panel")
+    st.markdown('<span class="badge-adk">Framework: Google ADK</span><span class="badge-gpt5">Brain: GPT-5</span>', unsafe_allow_html=True)
     st.caption("Multimodal RAG with Evidence Conflict Detection")
     
     st.divider()
     
-    st.subheader("🛡️ Verification Settings")
+    st.subheader("🤖 Google ADK Agent Status")
+    st.write(f"**Agent Name:** `{adk_agent.name}`")
+    st.write(f"**LLM Model Brain:** `{adk_agent.model.model}`")
+    st.write(f"**ADK Tools Registered:** {len(adk_agent.tools)}")
+    with st.expander("🛠️ View ADK Tools"):
+        for t in adk_agent.tools:
+            st.code(f"{t.__name__}(): {t.__doc__.strip().splitlines()[0] if t.__doc__ else ''}")
+
+    st.divider()
+
+    st.subheader("🛡️ Evidence Verification")
     strict_verification = st.toggle(
         "Strict Verification Mode",
         value=False,
@@ -121,29 +143,6 @@ with st.sidebar:
         help="Number of candidates retrieved from ChromaDB for evidence cross-examination."
     )
     
-    st.divider()
-    
-    # Azure OpenAI Connection Status
-    st.subheader("🤖 Reasoning Engine")
-    if azure_client.is_configured():
-        st.success("🟢 Azure OpenAI: Active")
-        st.caption(f"Deployment: `{azure_client.deployment}`")
-    else:
-        st.info("ℹ️ Engine: Calibrated Heuristic Engine")
-        st.caption("Azure OpenAI credentials not yet detected. Using deterministic evidence cross-examination engine.")
-
-    with st.expander("🔑 Configure Azure OpenAI"):
-        st.write("Enter credentials or define them in `.env`:")
-        az_endpoint = st.text_input("Endpoint", value=os.getenv("AZURE_OPENAI_ENDPOINT", ""), type="password")
-        az_key = st.text_input("API Key", value=os.getenv("AZURE_OPENAI_API_KEY", ""), type="password")
-        az_deploy = st.text_input("Deployment Name", value=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4o"))
-        if st.button("Save Credentials"):
-            os.environ["AZURE_OPENAI_ENDPOINT"] = az_endpoint
-            os.environ["AZURE_OPENAI_API_KEY"] = az_key
-            os.environ["AZURE_OPENAI_DEPLOYMENT_NAME"] = az_deploy
-            st.success("Settings saved! Rerun query to use Azure OpenAI.")
-            st.rerun()
-
     st.divider()
     
     # Visual Reference Upload (Sidebar)
@@ -179,7 +178,7 @@ with st.sidebar:
 # Main Header
 st.markdown('<div class="main-title">🛍️ Multimodal Evidence-Grounded Recommender</div>', unsafe_allow_html=True)
 st.markdown(
-    '<div class="sub-title">Reconciling conflicting evidence across images, specifications, marketing copy, and reviews</div>',
+    '<div class="sub-title">Built on <b>Google ADK</b> with <b>Azure AI Foundry GPT-5</b> as the reasoning brain</div>',
     unsafe_allow_html=True
 )
 
@@ -194,7 +193,7 @@ for msg in st.session_state.messages:
         # Render evaluated products with evidence breakdown
         if msg.get("evaluated_items"):
             st.markdown("---")
-            st.markdown("#### 📦 Product Recommendations & Evidence Audits")
+            st.markdown("#### 📦 Product Recommendations & Evidence Audits (Google ADK + GPT-5)")
 
             for item in msg["evaluated_items"]:
                 prod = item["product"]
@@ -212,7 +211,6 @@ for msg in st.session_state.messages:
                             st.write("*(No product image)*")
 
                     with col2:
-                        # Header with Title and Verification Badge
                         header_cols = st.columns([3, 1.5])
                         with header_cols[0]:
                             st.subheader(prod["title"])
@@ -225,22 +223,19 @@ for msg in st.session_state.messages:
                             else:
                                 st.markdown('<span class="badge-avoid">🔴 AVOID - CRITICAL MISMATCH</span>', unsafe_allow_html=True)
 
-                        # Scores Row
                         score_cols = st.columns(3)
                         with score_cols[0]:
                             st.metric("Visual/Text Match", f"{item['similarity_score']}%")
                         with score_cols[1]:
-                            st.metric("Evidence Confidence", f"{item['confidence_score']}%")
+                            st.metric("Product Reliability", f"{item['confidence_score']}%")
                         with score_cols[2]:
                             st.metric("Grounded Score", f"{item['grounded_score']}%")
 
-                        # Conflict Callout
                         if has_conflict:
-                            st.warning(f"**Discrepancy Flagged ({item['conflict_type']}):** {item['discrepancy_details']}")
+                            st.warning(f"**Discrepancy Flagged by GPT-5 ({item['conflict_type']}):** {item['discrepancy_details']}")
                         else:
-                            st.success("**Evidence Grounded:** All modalities (specs, reviews, visual features) are verified consistent.")
+                            st.success("**Evidence Grounded:** All modalities (specs, reviews, visual features) verified consistent by GPT-5.")
 
-                        # Expandable Evidence Cross-Examination Drawer
                         with st.expander("🔍 Cross-Examine Multimodal Evidence"):
                             ev_cols = st.columns(3)
                             with ev_cols[0]:
@@ -254,6 +249,7 @@ for msg in st.session_state.messages:
                                 st.write(item.get("reviews_summary", "Customer feedback"))
 
                             st.markdown(f"**Manufacturer Claim:** *\"{prod.get('manufacturer_description', '')}\"*")
+                            st.caption(f"Reasoning Engine: {item.get('engine', 'Google ADK (Brain: GPT-5)')}")
 
 # Chat Input Widget
 chat_submission = st.chat_input(
@@ -266,7 +262,6 @@ if chat_submission:
     user_text = chat_submission.text if hasattr(chat_submission, "text") else str(chat_submission)
     attached_files = getattr(chat_submission, "files", [])
 
-    # Determine query image
     query_image = None
     if attached_files and len(attached_files) > 0:
         query_image = Image.open(attached_files[0])
@@ -277,7 +272,6 @@ if chat_submission:
         st.warning("Please type a question or attach an image.")
         st.stop()
 
-    # Append User Message
     st.session_state.messages.append({
         "role": "user",
         "content": user_text if user_text.strip() else "(Attached visual reference image)",
@@ -285,16 +279,14 @@ if chat_submission:
         "evaluated_items": []
     })
 
-    # Render User Message immediately
     with st.chat_message("user"):
         if query_image:
             st.image(query_image, caption="Query Reference Image", width=320)
         if user_text.strip():
             st.markdown(user_text)
 
-    # Generate Assistant Response
     with st.chat_message("assistant"):
-        with st.spinner("Embedding query, retrieving from ChromaDB, & cross-examining evidence..."):
+        with st.spinner("Google ADK Agent orchestrating retrieval & GPT-5 evidence cross-examination..."):
             agent_result = agent.process_query(
                 query=user_text,
                 image=query_image,
@@ -309,7 +301,7 @@ if chat_submission:
 
             if evaluated_items:
                 st.markdown("---")
-                st.markdown("#### 📦 Product Recommendations & Evidence Audits")
+                st.markdown("#### 📦 Product Recommendations & Evidence Audits (Google ADK + GPT-5)")
 
                 for item in evaluated_items:
                     prod = item["product"]
@@ -343,14 +335,14 @@ if chat_submission:
                             with score_cols[0]:
                                 st.metric("Visual/Text Match", f"{item['similarity_score']}%")
                             with score_cols[1]:
-                                st.metric("Evidence Confidence", f"{item['confidence_score']}%")
+                                st.metric("Product Reliability", f"{item['confidence_score']}%")
                             with score_cols[2]:
                                 st.metric("Grounded Score", f"{item['grounded_score']}%")
 
                             if has_conflict:
-                                st.warning(f"**Discrepancy Flagged ({item['conflict_type']}):** {item['discrepancy_details']}")
+                                st.warning(f"**Discrepancy Flagged by GPT-5 ({item['conflict_type']}):** {item['discrepancy_details']}")
                             else:
-                                st.success("**Evidence Grounded:** All modalities (specs, reviews, visual features) are verified consistent.")
+                                st.success("**Evidence Grounded:** All modalities (specs, reviews, visual features) verified consistent by GPT-5.")
 
                             with st.expander("🔍 Cross-Examine Multimodal Evidence"):
                                 ev_cols = st.columns(3)
@@ -365,6 +357,7 @@ if chat_submission:
                                     st.write(item.get("reviews_summary", "Customer feedback"))
 
                                 st.markdown(f"**Manufacturer Claim:** *\"{prod.get('manufacturer_description', '')}\"*")
+                                st.caption(f"Reasoning Engine: {item.get('engine', 'Google ADK (Brain: GPT-5)')}")
 
             st.session_state.messages.append({
                 "role": "assistant",

@@ -1,16 +1,16 @@
 ﻿"""
 Multimodal Evidence Conflict Detector
-Performs cross-modal reconciliation across visual features, manufacturer specifications,
-marketing claims, and real-world customer reviews using Azure Foundry GPT-5.
+Orchestrated by the Google ADK Agent, cross-examining multimodal evidence
+across visual features, specifications, marketing copy, and reviews using its GPT-5 brain.
 """
 
 from typing import List, Dict, Any
-from .azure_llm import AzureOpenAIClient
+from .google_adk_agent import create_adk_agent
 
 
 class MultimodalConflictDetector:
     def __init__(self):
-        self.reasoning_client = AzureOpenAIClient()
+        self.adk_agent = create_adk_agent()
 
     def evaluate_candidates(
         self,
@@ -19,8 +19,8 @@ class MultimodalConflictDetector:
     ) -> List[Dict[str, Any]]:
         """
         Takes candidates retrieved by the multimodal vector store,
-        runs evidence cross-examination on each item, and generates
-        calibrated recommendation decisions.
+        runs evidence cross-examination on each item using the Google ADK agent's GPT-5 brain,
+        and generates calibrated recommendation decisions.
         """
         evaluated_items = []
 
@@ -28,8 +28,8 @@ class MultimodalConflictDetector:
             product = item.get("product", {})
             similarity = item.get("similarity_score", 0.0)
 
-            # Reconcile multi-source evidence via GPT-5 or heuristic engine
-            evidence_result = self.reasoning_client.reconcile_evidence(product, query)
+            # Reconcile multi-source evidence via the Google ADK Agent's GPT-5 brain
+            evidence_result = self.adk_agent.model.audit_product_evidence(product, query)
 
             raw_conflict = evidence_result.get("has_conflict", False)
             verdict = evidence_result.get("verdict", "RECOMMENDED")
@@ -67,7 +67,7 @@ class MultimodalConflictDetector:
                 "specs_summary": evidence_result.get("specs_evidence_summary", ""),
                 "reviews_summary": evidence_result.get("reviews_evidence_summary", ""),
                 "verdict": verdict,
-                "engine": evidence_result.get("engine", "Azure Foundry (gpt-5)")
+                "engine": f"Google ADK Agent (Brain: {self.adk_agent.model.model})"
             })
 
         # Sort by grounded score (prioritizes high similarity + verified consistency)
