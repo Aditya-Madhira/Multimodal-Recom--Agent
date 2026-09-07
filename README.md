@@ -78,8 +78,8 @@ graph TD
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/Aditya-Madhira/Multimodal-Recom--Agent.git
-cd Multimodal-Recom--Agent
+git clone https://github.com/Aditya-Madhira/multimodal-evidence-rag.git
+cd multimodal-evidence-rag
 ```
 
 ### 2. Set Up a Virtual Environment
