@@ -116,25 +116,24 @@ Open your browser at `http://localhost:8501`.
 
 ---
 
-## 🧪 Evaluation on Hand-Crafted Benchmark
+## 🧪 Sanity Checks & Prototype Verification
 
-To quantitatively assess the agent's behavior, we created an evaluation suite ([benchmark_metrics.py](benchmark_metrics.py)) tested on a curated dataset representing distinct conflict archetypes (material authenticity mismatches, load rating discrepancies, noise rating mismatches, and verified consistent controls):
+To verify pipeline mechanics and tool routing, we run an automated sanity suite ([benchmark_metrics.py](benchmark_metrics.py)) across six hand-built cases representing distinct claim archetypes:
+* **Material Authenticity**: Marketing claims genuine Italian leather; spec sheet discloses PU faux leather.
+* **Load Rating Contradiction**: Marketing claims 160 kg capacity; spec table discloses a 100 kg limit.
+* **Finish Inconsistency**: Visuals suggest solid forged brass; spec discloses electroplated plastic.
+* **Acoustic Discrepancy**: Marketing claims <20 dB whisper quiet; specs list 46–62 dB.
+* **Clean Controls**: Real solid teakwood table and artisan stoneware dinnerware with zero contradictions.
 
 ```bash
 python benchmark_metrics.py
 ```
 
-### Results on Curated Test Set ($N=6$):
+### Verification Observations:
+- **Tool Routing**: Verified that the Google ADK agent properly selects between catalog search (`search_multimodal_products`) and deep claim verification (`cross_examine_product_evidence`) based on user intent.
+- **Contradiction Auditing**: Correctly flagged the discrepancy in the 4 conflicting test archetypes while preserving clean recommendations on the 2 control listings.
 
-| Category | Metric | Score | Details |
-| :--- | :--- | :--- | :--- |
-| **Agent Tool Calling** | **Tool Routing Accuracy** | **100%** | Correctly selected search vs. evidence audit tools across test queries |
-| **Agent Tool Calling** | **Argument Validity Rate** | **100%** | Passed schema-compliant payloads to Google ADK tools |
-| **Conflict Detection** | **Precision** | **100%** | Zero false accusations on verified consistent products |
-| **Conflict Detection** | **Recall** | **100%** | Successfully identified all hand-labeled contradiction cases |
-| **Conflict Detection** | **False Positive Rate** | **0.0%** | Fully grounded items remained correctly unflagged |
-
-> **Methodological Scope**: These metrics reflect evaluation on a small, hand-labeled prototype benchmark ($N=6$) designed to probe cross-modal conflict edge cases. Future work includes expanding this to large-scale e-commerce datasets with automated synthetic conflict injection.
+> **Next Step**: Scaling beyond this 6-case sanity check to a 30–50+ product labeled evaluation set with subtle, programmatic conflict injection to rigorously measure false-positive rates on clean listings.
 
 ---
 
